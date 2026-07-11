@@ -1,8 +1,13 @@
-name: Build and Push Docker image to GHCR
+name: Build and Push Docker image to GHCR and Deploy on EC2
 on:
   push:
     branches:
       - main
+    paths-ignore:
+      - '.github/workflows/**'  
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build-and-push:
@@ -17,20 +22,56 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Login to GHCR
-        run: echo "${{ secrets.DOCKER_HUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+        run: echo "${{ secrets.DOCKER_HUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
 
       - name: Build Docker image
         run: |
+          IMAGE_LOWER=$(echo "${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
           docker build \
-            -t ghcr.io/${{ github.repository }}:latest \
-            -t ghcr.io/${{ github.repository }}:${{ github.sha }} \
+            -t ${{ env.REGISTRY }}/$IMAGE_LOWER:latest \
+            -t ${{ env.REGISTRY }}/$IMAGE_LOWER:${{ github.sha }} \
             -f ./Dockerfile .
 
       - name: Push Docker image
         run: |
-          docker push ghcr.io/${{ github.repository }}:latest
-          docker push ghcr.io/${{ github.repository }}:${{ github.sha }}        
+          IMAGE_LOWER=$(echo "${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
+          docker push ${{ env.REGISTRY }}/$IMAGE_LOWER:latest
+          docker push ${{ env.REGISTRY }}/$IMAGE_LOWER:${{ github.sha }}        
+  deploy-to-ec2:
+   needs: build-and-push
+   runs-on: ubuntu-latest
 
+   steps:
+    - name: Deploy to EC2 via SSH 
+      env:
+        SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
+        SSH_HOST: ${{ secrets.EC2_HOST }}
+        SSH_USER: ${{ secrets.EC2_USER }}
+      run: |
+        mkdir -p ~/.ssh
+        echo "$SSH_PRIVATE_KEY" > ~/.ssh/ec2_key.pem
+        chmod 600 ~/.ssh/ec2_key.pem
+
+        ssh-keyscan -H "SSH_HOST" >> ~/.ssh/known_hosts
+
+        REPO_LOWER=$(echo "${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')  
+        ACTOR_LOWER=$(echo "${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
+
+        ssh -i ~/.ssh/ec2_key.pem ${SSH_USER}@${SSH_HOST} << EOF
+        echo "${{ secrets.DOCKER_HUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u $ACTOR_LOWER --password-stdin
+
+        docker pull ${{ env.REGISTRY }}/$REPO_LOWER:latest
+        
+        docker stop my-app-conatiner || true
+        docker rm my-app-conatiner || true 
+
+        docker run -d \
+          --name my-app-conatiner \
+          --restart unless-stopped \
+          --network host \
+          ${{ env.REGISTRY }}/$REPO_LOWER:latest
+
+        EOF  
 
       
 
