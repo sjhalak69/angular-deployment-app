@@ -52,25 +52,18 @@ jobs:
 
         REPO_LOWER=$(echo "${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')  
         ACTOR_LOWER=$(echo "${{ github.actor }}" | tr '[:upper:]' '[:lower:]')
+        FULL_IMAGE_NAME="${{ env.REGISTRY }}/$REPO_LOWER:latest"
+        EC2_TARGET="$"{{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}""
 
-        ssh -i ~/.ssh/ec2_key.pem ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
-        echo "${{ secrets.DOCKER_HUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u $ACTOR_LOWER --password-stdin
+        echo "${{ secrets.DOCKER_HUB_TOKEN }}" | ssh -i ~/.ssh/ec2_key.pem $EC2_TARGET "docker login ${{ env.REGISTRY }} -u $ACTOR_LOWER --password-stdin"
 
-        docker pull ${{ env.REGISTRY }}/$REPO_LOWER:latest
+        ssh -i ~/.ssh/ec2_key.pem $EC2_TARGET "docker pull $FULL_IMAGE_NAME"
+        ssh -i ~/.ssh/ec2_key.pem $EC2_TARGET "docker run -d --name my-app-conatiner --restart my-app-conatiner --network host $FULL_IMAGE_NAME"
         
-        docker stop my-app-conatiner || true
-        docker rm my-app-conatiner || true 
-
-        docker run -d \
-          --name my-app-conatiner \
-          --restart unless-stopped \
-          --network host \
-          ${{ env.REGISTRY }}/$REPO_LOWER:latest
-
         docker ps -a 
         docker images 
 
-        EOF  
+        ssh -i ~/.ssh/ec2_key.pem $EC2_TARGET "docker system prune -f" 
 
       
 
