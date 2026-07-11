@@ -55,7 +55,7 @@ jobs:
         ssh-keyscan -H "SSH_HOST" >> ~/.ssh/known_hosts
 
         REPO_LOWER=$(echo "${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')  
-        ACTOR_LOWER=$(echo "${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
+        ACTOR_LOWER=$(echo "${{ github.actor }}" | tr '[:upper:]' '[:lower:]')
 
         ssh -i ~/.ssh/ec2_key.pem ${SSH_USER}@${SSH_HOST} << EOF
         echo "${{ secrets.DOCKER_HUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u $ACTOR_LOWER --password-stdin
@@ -70,6 +70,9 @@ jobs:
           --restart unless-stopped \
           --network host \
           ${{ env.REGISTRY }}/$REPO_LOWER:latest
+          
+        docker ps -a 
+        docker images 
 
         EOF  
 
