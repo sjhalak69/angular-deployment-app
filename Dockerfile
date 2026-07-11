@@ -5,6 +5,7 @@ RUN npm install
 COPY . .
 RUN npm run build -- --configuration=production
 
+
 FROM nginx:alpine
 COPY --from=build /app/dist/angular-deployment-app/browser /usr/share/nginx/html
 EXPOSE 80
