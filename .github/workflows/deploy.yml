@@ -58,7 +58,7 @@ jobs:
         echo "${{ secrets.DOCKER_HUB_TOKEN }}" | ssh -i ~/.ssh/ec2_key.pem $EC2_TARGET "docker login ${{ env.REGISTRY }} -u $ACTOR_LOWER --password-stdin"
 
         ssh -i ~/.ssh/ec2_key.pem $EC2_TARGET "docker pull $FULL_IMAGE_NAME"
-        ssh -i ~/.ssh/ec2_key.pem $EC2_TARGET "docker run -d --name my-app-conatiner --restart my-app-conatiner --network host $FULL_IMAGE_NAME"
+        ssh -i ~/.ssh/ec2_key.pem $EC2_TARGET "docker run -d --name my-app-container --restart unless-stopped --network host $FULL_IMAGE_NAME"
         
         docker ps -a 
         docker images 
